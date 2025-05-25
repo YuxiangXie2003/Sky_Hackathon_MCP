@@ -4,6 +4,7 @@ test3.py
 test4.py
 audio/
 landmarks_map.png
+landmarks.json
 __pycache__
 mcp_demo_bak.py
 tool_hub_bak.py
