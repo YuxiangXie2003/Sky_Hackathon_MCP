@@ -8,8 +8,10 @@ import os, asyncio, logging
 from pydub import AudioSegment
 import streamlit.components.v1 as components
 from dotenv import load_dotenv
+import json
+import emoji
 
-# 你的音频转文字函数
+# 音频转文字函数
 from mcp_module import audio_to_text
 
 # =========  LLM Bridge  ========= #
@@ -47,11 +49,11 @@ def init_bridge():
             "2. `generate_static_map(city)`：查询该城市的著名景点，并生成地图"
             "输出要求："
             "- 使用中文，风格贴近“小红书”或微信公众号旅游博主文案，亲切有温度。"
-            "- 每天的天气用 emoji 表示（如 ☀️、🌧️），换行展示，注意不要重复说“天气如下”等。"
-            "- 将函数返回的景点分组，合理规划为每一天路线，结合城市特色安排顺序。注意不要添加函数返回的景点之外的景点"
+            "- 每天的天气用 emoji 表示（如 ☀️、🌧️），换行展示，注意不要重复说“天气如下”等。你需要在最开始先总结天气"
+            "- 将generate_static_map函数返回的景点分组，合理规划为每一天路线，结合城市特色安排顺序。注意不要添加generate_static_map函数返回的景点之外的景点"
             "- 添加贴心小贴士，如建议交通方式、雨具准备、游玩节奏。"
             "- 最后附上地图生成提示，例如：“🗺️地图已生成，在下方查看所有景点位置”。"
-            "你不需要说明工具的使用过程，只输出整理后的内容即可，直接回复给用户。"
+            "- 你不需要说明工具的使用过程，不需要展示思考过程，只输出整理后的内容即可，直接回复给用户。"
         )
     )
     return BridgeManager(cfg)
@@ -66,23 +68,29 @@ def llm_chat_sync(user_input: str) -> str:
             return await bridge.process_message(prompt)
     return asyncio.run(_chat(user_input))
 
+
+def strip_emoji(text: str) -> str:
+    # emoji.replace_emoji 从 v2.0 开始支持
+    return emoji.replace_emoji(text, replace='')
+
+
 # =========  Streamlit UI  ========= #
 st.set_page_config(page_title="旅图通——你的旅游规划智能体")
 st.title("旅图通——你的旅游规划智能体")
 
 # 大标题
-st.markdown("## 选择输入方式")  # ‘##’ = H2 级标题，可根据需要改成 ###、#### …
+st.markdown("## 选择输入方式")  
 
-# 把 radio 自带的 label 隐藏
+# 把radio自带的label隐藏
 input_method = st.radio(
-    label="placeholder",              # 随便写
+    label="placeholder",              
     options=["语音输入", "上传文件", "文本输入"],
-    label_visibility="collapsed"      # 关键参数：隐藏标签
+    label_visibility="collapsed"      
 )
 
 result_text, model_output = None, None
 
-# 🎙️ 语音输入
+# 语音输入
 if input_method == "语音输入":
     st.subheader("🎙️ 录音输入")
     audio_file_path = "audio/input.wav"
@@ -105,7 +113,7 @@ if input_method == "语音输入":
         with st.spinner("🎤 正在识别..."):
             result_text = asyncio.run(audio_to_text(audio_file_path))
 
-# 📁 文件上传
+# 文件上传
 elif input_method == "上传文件":
     st.subheader("📁 上传音频文件")
     uploaded = st.file_uploader("上传 WAV 文件", type=["wav"])
@@ -120,7 +128,7 @@ elif input_method == "上传文件":
     else:
         st.button("请先上传文件", disabled=True)
 
-# ✍️ 文本输入
+# 文本输入
 else:
     st.subheader("✍️ 文本输入")
     text_input = st.text_area("请输入内容：", "上海")
@@ -130,7 +138,7 @@ else:
         else:
             st.warning("文本不能为空")
 
-# 🧠 LLM 处理与展示
+# LLM 处理与展示
 if result_text:
     st.markdown("#### 🎧 你输入的内容是：")
     st.info(result_text)
@@ -143,7 +151,7 @@ if result_text:
             st.error(f"调用 LLM 出错：{e}")
             model_output = None
 
-# ✅ 展示结果
+# 展示结果
 if model_output:
     st.success("LLM 已生成👇")
     st.markdown(model_output)
@@ -152,10 +160,23 @@ if model_output:
     if os.path.exists("landmarks_map.png"):
         st.image("landmarks_map.png", caption="🗺️ 旅行地图", use_container_width=True)
 
-    # 自动朗读
-    components.html(f"""
+    clean_output = strip_emoji(model_output)
+
+    js_safe_text = json.dumps(clean_output)
+
+    components.html(
+        f"""
+        <button id="speak-btn" style="font-size:16px;padding:6px 12px;border-radius:6px;">
+            ▶ 语音输出
+        </button>
         <script>
-            const msg = new SpeechSynthesisUtterance("{model_output}");
-            window.speechSynthesis.speak(msg);
+            const txt = {js_safe_text};
+            document.getElementById('speak-btn').onclick = () => {{
+                const msg = new SpeechSynthesisUtterance(txt);
+                window.speechSynthesis.speak(msg);
+            }};
         </script>
-    """, height=0)
+        """,
+        height=60,
+    )
+
