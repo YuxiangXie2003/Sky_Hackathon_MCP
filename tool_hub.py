@@ -5,10 +5,15 @@ import os
 import requests
 import json
 import pathlib
+from dotenv import load_dotenv
+
+load_dotenv() 
 
 # 初始化 FastMCP 服务器
 mcp = FastMCP("travel_tools")
-GAODE_API_KEY = os.getenv("AMAP_API_KEY", "05e0edda24d162d5d17551c630fd4755")
+GAODE_API_KEY = os.getenv("AMAP_API_KEY")
+if not GAODE_API_KEY:
+    raise RuntimeError("未找到 AMAP_API_KEY！请在 .env 文件中添加，如：\nAMAP_API_KEY=xxxxxxxxxxxxxxxx")
 
 json_path = pathlib.Path("landmarks.json")
 

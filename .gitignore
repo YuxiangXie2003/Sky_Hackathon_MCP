@@ -8,3 +8,4 @@ landmarks.json
 __pycache__
 mcp_demo_bak.py
 tool_hub_bak.py
+.env
